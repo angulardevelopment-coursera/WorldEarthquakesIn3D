@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D Earthquake Visualizer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; color: #fff; }
+        canvas { display: block; }
+        .info-box {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-family: sans-serif;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        .controls-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: sans-serif;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 200;
+        }
+        #loadDataBtn {
+            padding: 8px 12px;
+            border: 1px solid white;
+            border-radius: 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            cursor: pointer;
+            font-family: sans-serif;
+            transition: background-color 0.2s;
+        }
+        #loadDataBtn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        #errorMessage {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(150, 0, 0, 0.75);
+            color: white;
+            font-family: sans-serif;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            display: none;
+            max-width: 300px;
+        }
+        #successMessage {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 150, 0, 0.75);
+            color: white;
+            font-family: sans-serif;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            display: none;
+            max-width: 300px;
+        }
+        #note-message {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-family: sans-serif;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="info-box">
+        <h3>Earthquake Data Visualization</h3>
+        <p>Left-click and drag to rotate the globe.</p>
+        <p>Right-click and drag to pan the view.</p>
+        <p>Use the mouse wheel to zoom.</p>
+        <p>Click on an earthquake to see details.</p>
+    </div>
+
+    <div class="controls-container">
+        <button id="loadDataBtn">Load Live Data</button>
+        <div class="slider-container">
+            <label for="timeSlider">Time Span (1-21 Days Ago):</label>
+            <input type="range" id="timeSlider" min="1" max="21" value="21">
+            <span id="sliderValue">21 Days</span>
+        </div>
+    </div>
+    
+    <div id="tooltip"></div>
+    <div id="errorMessage"></div>
+    <div id="successMessage"></div>
+    <div id="note-message">
+        <p>Note: The data shown is a combination of sources from Geoscience Australia (last 7 days) and USGS (last 30 days). The date/time values are displayed in your local time.</p>
+    </div>
+
+    <script>
+        window.onload = function() {
+            // --- Scene Setup ---
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000);
+            document.body.appendChild(renderer.domElement);
+
+            // --- Camera Controls ---
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            camera.position.z = 250;
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.zoomSpeed = 0.2;
+
+            const earthRadius = 100;
+            let allEarthquakes = []; // This will store the full, unfiltered data
+
+            // --- Globe Creation ---
+            const sphereGeometry = new THREE.SphereGeometry(earthRadius, 32, 32);
+            const wireframeGeometry = new THREE.WireframeGeometry(sphereGeometry);
+
+            const frontWireframeMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+            const frontWireframe = new THREE.LineSegments(wireframeGeometry, frontWireframeMaterial);
+            scene.add(frontWireframe);
+
+            const backWireframeMaterial = new THREE.LineBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.15,
+                depthWrite: false,
+                depthTest: false
+            });
+            const backWireframe = new THREE.LineSegments(wireframeGeometry, backWireframeMaterial);
+            scene.add(backWireframe);
+
+            // Function to convert spherical coordinates (lat, lon) to 3D Cartesian coordinates
+            function latLonToVector3(lat, lon, radius) {
+                const phi = (90 - lat) * Math.PI / 180;
+                const theta = (lon + 180) * Math.PI / 180;
+                
+                const x = -((radius) * Math.sin(phi) * Math.cos(theta));
+                const y = ((radius) * Math.cos(phi));
+                const z = ((radius) * Math.sin(phi) * Math.sin(theta));
+                
+                return new THREE.Vector3(x, y, z);
+            }
+
+            // --- Country Outlines ---
+            fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+                .then(response => response.json())
+                .then(data => {
+                    const frontCountriesMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                    const backCountriesMaterial = new THREE.LineBasicMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.1,
+                        depthWrite: false,
+                        depthTest: false
+                    });
+
+                    data.features.forEach(feature => {
+                        if (feature.geometry.type === 'Polygon') {
+                            const geometry = new THREE.BufferGeometry();
+                            const points = [];
+                            feature.geometry.coordinates[0].forEach(coord => {
+                                points.push(latLonToVector3(coord[1], coord[0], earthRadius + 1));
+                            });
+                            geometry.setFromPoints(points);
+                            const frontLine = new THREE.Line(geometry, frontCountriesMaterial);
+                            scene.add(frontLine);
+                            const backLine = new THREE.Line(geometry, backCountriesMaterial);
+                            scene.add(backLine);
+                        } else if (feature.geometry.type === 'MultiPolygon') {
+                            feature.geometry.coordinates.forEach(polygon => {
+                                const geometry = new THREE.BufferGeometry();
+                                const points = [];
+                                polygon[0].forEach(coord => {
+                                    points.push(latLonToVector3(coord[1], coord[0], earthRadius + 1));
+                                });
+                                geometry.setFromPoints(points);
+                                const frontLine = new THREE.Line(geometry, frontCountriesMaterial);
+                                scene.add(frontLine);
+                                const backLine = new THREE.Line(geometry, backCountriesMaterial);
+                                scene.add(backLine);
+                            });
+                        }
+                    });
+                })
+                .catch(error => console.error('Error loading country data:', error));
+
+            let earthquakeSpheres = [];
+
+            const errorMessageDiv = document.getElementById('errorMessage');
+            const successMessageDiv = document.getElementById('successMessage');
+
+            function showMessage(type, message) {
+                if (type === 'error') {
+                    errorMessageDiv.textContent = message;
+                    errorMessageDiv.style.display = 'block';
+                    successMessageDiv.style.display = 'none';
+                } else if (type === 'success') {
+                    successMessageDiv.textContent = message;
+                    successMessageDiv.style.display = 'block';
+                    errorMessageDiv.style.display = 'none';
+                }
+                setTimeout(() => {
+                    errorMessageDiv.style.display = 'none';
+                    successMessageDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            // Function to render the earthquake spheres from a given array
+            function renderEarthquakes(earthquakeData) {
+                // Clear previous earthquake spheres
+                scene.children.filter(obj => obj.userData.isQuake).forEach(obj => scene.remove(obj));
+                earthquakeSpheres = []; // Reset the array of earthquake spheres
+
+                earthquakeData.forEach(quake => {
+                    const depthScaleFactor = 0.1;
+                    const quakePosition = latLonToVector3(quake.latitude, quake.longitude, earthRadius - (quake.depth * depthScaleFactor));
+                    
+                    const sizeMultiplier = 0.2;
+                    const sphereSize = Math.pow(1.5, quake.magnitude) * sizeMultiplier;
+                    
+                    const sphereGeometry = new THREE.SphereGeometry(sphereSize, 16, 16);
+                    let color = 0xff0000;
+                    if (quake.magnitude < 6) {
+                        color = 0xffff00;
+                    }
+                    const material = new THREE.MeshBasicMaterial({ color: color, wireframe: false });
+                    const quakeSphere = new THREE.Mesh(sphereGeometry, material);
+                    quakeSphere.position.copy(quakePosition);
+                    quakeSphere.userData = {
+                        isQuake: true,
+                        magnitude: quake.magnitude,
+                        depth: quake.depth,
+                        latitude: quake.latitude,
+                        longitude: quake.longitude,
+                        time: quake.time,
+                        place: quake.place,
+                        source: quake.source
+                    };
+                    scene.add(quakeSphere);
+                    earthquakeSpheres.push(quakeSphere);
+                });
+            }
+
+            // --- Data Processing Functions ---
+            function processGaData(geojson, uniqueIds, earthquakesArray) {
+                if (!geojson || !geojson.features || !Array.isArray(geojson.features)) {
+                    return;
+                }
+                geojson.features.forEach(feature => {
+                    const id = feature.id;
+                    if (id && !uniqueIds.has(id)) {
+                        uniqueIds.add(id);
+                        const props = feature.properties;
+                        const longitude = feature.geometry.coordinates[0];
+                        const latitude = feature.geometry.coordinates[1];
+                        const magnitude = props.preferred_magnitude;
+                        const depth = props.depth;
+                        const place = props.description;
+                        const time = props.epicentral_time ? new Date(props.epicentral_time).getTime() : null;
+
+                        if (latitude != null && longitude != null && magnitude != null && depth != null && time) {
+                            earthquakesArray.push({
+                                magnitude: parseFloat(magnitude),
+                                depth: parseFloat(depth),
+                                place: place,
+                                time: new Date(time),
+                                latitude: parseFloat(latitude),
+                                longitude: parseFloat(longitude),
+                                source: 'GA'
+                            });
+                        }
+                    }
+                });
+            }
+
+            function processUsgsData(geojson, uniqueIds, earthquakesArray) {
+                if (!geojson || !geojson.features || !Array.isArray(geojson.features)) {
+                    return;
+                }
+                geojson.features.forEach(feature => {
+                    const id = feature.id;
+                    if (id && !uniqueIds.has(id)) {
+                        uniqueIds.add(id);
+                        const props = feature.properties;
+                        const longitude = feature.geometry.coordinates[0];
+                        const latitude = feature.geometry.coordinates[1];
+                        const depth = feature.geometry.coordinates[2];
+                        const magnitude = props.mag;
+                        const place = props.place;
+                        const time = props.time;
+
+                        if (latitude != null && longitude != null && magnitude != null && depth != null && time) {
+                            earthquakesArray.push({
+                                magnitude: parseFloat(magnitude),
+                                depth: parseFloat(depth),
+                                place: place,
+                                time: new Date(time),
+                                latitude: parseFloat(latitude),
+                                longitude: parseFloat(longitude),
+                                source: 'USGS'
+                            });
+                        }
+                    }
+                });
+            }
+
+            function combineAndDeduplicate(array1, array2) {
+                const combined = [...array1];
+                const tolerance = {
+                    magnitude: 0.1,
+                    coords: 0.01,
+                    time: 60 * 1000 // 60 seconds
+                };
+
+                for (const quake2 of array2) {
+                    const isDuplicate = combined.some(quake1 =>
+                        Math.abs(quake1.magnitude - quake2.magnitude) < tolerance.magnitude &&
+                        Math.abs(quake1.latitude - quake2.latitude) < tolerance.coords &&
+                        Math.abs(quake1.longitude - quake2.longitude) < tolerance.coords &&
+                        Math.abs(quake1.time.getTime() - quake2.time.getTime()) < tolerance.time
+                    );
+
+                    if (!isDuplicate) {
+                        combined.push(quake2);
+                    }
+                }
+                return combined;
+            }
+
+            /**
+             * Filters the global earthquake data by a number of days and re-renders the visualization.
+             * @param {number} days - The number of days from the present to filter by.
+             */
+            function filterAndRenderEarthquakes(days) {
+                const now = new Date();
+                const pastDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+                const filteredData = allEarthquakes.filter(quake => quake.time >= pastDate);
+                renderEarthquakes(filteredData);
+            }
+
+
+            // --- Data Loading from URL ---
+            const loadDataBtn = document.getElementById('loadDataBtn');
+            const gaDataUrl = 'https://earthquakes.ga.gov.au/geoserver/earthquakes/wfs?service=WFS&request=getfeature&typeNames=earthquakes:earthquakes_seven_days&outputFormat=application/json&CQL_FILTER=display_flag=%27Y%27';
+            const usgsDataUrl = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson';
+
+            // --- Slider and UI Elements ---
+            const timeSlider = document.getElementById('timeSlider');
+            const sliderValueDisplay = document.getElementById('sliderValue');
+            timeSlider.addEventListener('input', (event) => {
+                const days = event.target.value;
+                sliderValueDisplay.textContent = `${days} Days`;
+                filterAndRenderEarthquakes(days);
+            });
+
+            loadDataBtn.addEventListener('click', async () => {
+                loadDataBtn.disabled = true;
+                loadDataBtn.textContent = 'Loading...';
+                showMessage('success', 'Loading data from multiple sources...');
+
+                const uniqueIds = new Set();
+                const australianEarthquakes = [];
+                const usgsEarthquakes = [];
+
+                try {
+                    const [gaResult, usgsResult] = await Promise.allSettled([
+                        fetch(gaDataUrl),
+                        fetch(usgsDataUrl)
+                    ]);
+
+                    if (gaResult.status === 'fulfilled' && gaResult.value.ok) {
+                        const data = await gaResult.value.json();
+                        processGaData(data, uniqueIds, australianEarthquakes);
+                    } else {
+                        console.error('Failed to fetch Geoscience Australia data:', gaResult.reason);
+                    }
+
+                    if (usgsResult.status === 'fulfilled' && usgsResult.value.ok) {
+                        const data = await usgsResult.value.json();
+                        processUsgsData(data, uniqueIds, usgsEarthquakes);
+                    } else {
+                        console.error('Failed to fetch USGS data:', usgsResult.reason);
+                    }
+
+                    // Process and render the new combined data
+                    const combinedData = combineAndDeduplicate(australianEarthquakes, usgsEarthquakes);
+                    const filteredCombinedData = combinedData.filter(quake => quake.magnitude >= 1);
+                    allEarthquakes = filteredCombinedData; // Store the full data for the slider
+                    
+                    if (allEarthquakes.length > 0) {
+                        allEarthquakes.sort((a, b) => b.magnitude - a.magnitude);
+                        filterAndRenderEarthquakes(timeSlider.value); // Render with the default slider value
+                        showMessage('success', `Successfully loaded and combined ${allEarthquakes.length} unique earthquakes!`);
+                    } else {
+                        showMessage('error', 'No earthquake data found from either source.');
+                    }
+                } catch (error) {
+                    console.error('Initial data fetching error:', error);
+                    showMessage('error', `An unexpected error occurred during fetching: ${error.message}`);
+                } finally {
+                    loadDataBtn.textContent = 'Load Live Data';
+                    loadDataBtn.disabled = false;
+                }
+            });
+
+            // --- Click Event for Details ---
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            const tooltip = document.getElementById('tooltip');
+
+            function onClick(event) {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+
+                const intersects = raycaster.intersectObjects(earthquakeSpheres);
+
+                if (intersects.length > 0) {
+                    const intersectedObject = intersects[0].object;
+                    const quakeData = intersectedObject.userData;
+                    
+                    if (quakeData.isQuake) {
+                        const date = quakeData.time;
+                        const dateString = date.toLocaleDateString();
+                        const timeString = date.toLocaleTimeString();
+
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = `${event.clientX + 10}px`;
+                        tooltip.style.top = `${event.clientY + 10}px`;
+                        tooltip.innerHTML = `
+                            <strong>Source:</strong> ${quakeData.source}<br>
+                            <strong>Magnitude:</strong> ${quakeData.magnitude.toFixed(2)}<br>
+                            <strong>Depth:</strong> ${quakeData.depth.toFixed(2)} km<br>
+                            <strong>Location:</strong> ${quakeData.place}<br>
+                            <strong>Date/Time:</strong> ${dateString} ${timeString}<br>
+                            <strong>Latitude:</strong> ${quakeData.latitude.toFixed(2)}&deg;<br>
+                            <strong>Longitude:</strong> ${quakeData.longitude.toFixed(2)}&deg;
+                        `;
+                    }
+                } else {
+                    tooltip.style.display = 'none';
+                }
+            }
+
+            window.addEventListener('click', onClick, false);
+            
+            // Handle window resizing
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // --- Animation Loop ---
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        };
+    </script>
+</body>
+</html>
