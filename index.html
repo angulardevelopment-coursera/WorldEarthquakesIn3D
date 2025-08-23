@@ -37,6 +37,12 @@
             padding: 10px;
             border-radius: 5px;
         }
+        .data-display {
+            font-size: 0.9em;
+            margin-top: 5px;
+            text-align: center;
+            width: 100%;
+        }
         #tooltip {
             position: absolute;
             background-color: rgba(0, 0, 0, 0.75);
@@ -106,9 +112,9 @@
     <div class="info-box">
         <h3>Earthquake Data Visualization</h3>
         <!--<p>Left-click and drag to rotate the globe.</p>
-        //<p>Right-click and drag to pan the view.</p>
-       // <p>Use the mouse wheel to zoom.</p>
-        //<p>Click on an earthquake to see details.</p>-->
+        <p>Right-click and drag to pan the view.</p>
+        <p>Use the mouse wheel to zoom.</p>-->
+        <p>Click on an earthquake to see details.</p>
     </div>
 
     <div class="controls-container">
@@ -117,6 +123,8 @@
             <label for="timeSlider">Time Span (1-21 Days Ago):</label>
             <input type="range" id="timeSlider" min="1" max="21" value="21">
             <span id="sliderValue">21 Days</span>
+            <div class="data-display" id="totalDataDisplay">Total Data Points: 0</div>
+            <div class="data-display" id="filteredDataDisplay">Data Points Displayed: 0</div>
         </div>
     </div>
     
@@ -124,7 +132,8 @@
     <div id="errorMessage"></div>
     <div id="successMessage"></div>
     <div id="note-message">
-        <p>Note: The data shown is a combination of sources from Geoscience Australia (last 7 days) and USGS (last 30 days). The date/time values are displayed in your local time.</p>
+		<p><p/>
+        <p>The difference between Total and Displayed is because duplicates and small tremors have been removed. Note: The data shown is a combination of sources from Geoscience Australia (last 7 days), USGS (last 21 days), and EMSC (last 21 days). The date/time values are displayed in your local time.</p>
     </div>
 
     <script>
@@ -340,8 +349,39 @@
                 });
             }
 
-            function combineAndDeduplicate(array1, array2) {
-                const combined = [...array1];
+            function processEmscData(geojson, uniqueIds, earthquakesArray) {
+                if (!geojson || !geojson.features || !Array.isArray(geojson.features)) {
+                    return;
+                }
+                geojson.features.forEach(feature => {
+                    const id = feature.id;
+                    if (id && !uniqueIds.has(id)) {
+                        uniqueIds.add(id);
+                        const props = feature.properties;
+                        const longitude = feature.geometry.coordinates[0];
+                        const latitude = feature.geometry.coordinates[1];
+                        const depth = props.depth;
+                        const magnitude = props.mag;
+                        const place = props.flynn_region; // EMSC uses 'flynn_region' for location
+                        const time = props.time;
+
+                        if (latitude != null && longitude != null && magnitude != null && depth != null && time) {
+                            earthquakesArray.push({
+                                magnitude: parseFloat(magnitude),
+                                depth: parseFloat(depth),
+                                place: place,
+                                time: new Date(time),
+                                latitude: parseFloat(latitude),
+                                longitude: parseFloat(longitude),
+                                source: 'EMSC'
+                            });
+                        }
+                    }
+                });
+            }
+
+            function combineAndDeduplicate(array1, array2, array3) {
+                const combined = [...array1, ...array3]; // Start with GA and EMSC
                 const tolerance = {
                     magnitude: 0.1,
                     coords: 0.01,
@@ -372,17 +412,32 @@
                 const pastDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
                 const filteredData = allEarthquakes.filter(quake => quake.time >= pastDate);
                 renderEarthquakes(filteredData);
+                // Update the display for the number of filtered data points
+                document.getElementById('filteredDataDisplay').textContent = `Data Points Displayed: ${filteredData.length}`;
             }
 
 
             // --- Data Loading from URL ---
             const loadDataBtn = document.getElementById('loadDataBtn');
             const gaDataUrl = 'https://earthquakes.ga.gov.au/geoserver/earthquakes/wfs?service=WFS&request=getfeature&typeNames=earthquakes:earthquakes_seven_days&outputFormat=application/json&CQL_FILTER=display_flag=%27Y%27';
-            const usgsDataUrl = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson';
+            // Updated USGS URL to fetch 21 days instead of 30
+            const usgsDataUrl = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_21day.geojson';
 
-            // --- Slider and UI Elements ---
+            // Calculate dates for EMSC query for the last 21 days
+            const today = new Date();
+            const pastDate = new Date(today.getTime() - 21 * 24 * 60 * 60 * 1000);
+            const todayStr = today.toISOString().split('T')[0];
+            const pastDateStr = pastDate.toISOString().split('T')[0];
+            // Updated EMSC URL with start and end time parameters for a 21-day window
+            const emscDataUrl = `https://www.seismicportal.eu/fdsnws/event/1/query?format=json&nodata=404&start=${pastDateStr}&end=${todayStr}`;
+
+
+            // --- UI Elements ---
             const timeSlider = document.getElementById('timeSlider');
             const sliderValueDisplay = document.getElementById('sliderValue');
+            const totalDataDisplay = document.getElementById('totalDataDisplay');
+            const filteredDataDisplay = document.getElementById('filteredDataDisplay');
+
             timeSlider.addEventListener('input', (event) => {
                 const days = event.target.value;
                 sliderValueDisplay.textContent = `${days} Days`;
@@ -393,15 +448,21 @@
                 loadDataBtn.disabled = true;
                 loadDataBtn.textContent = 'Loading...';
                 showMessage('success', 'Loading data from multiple sources...');
+                
+                // Reset data displays
+                totalDataDisplay.textContent = 'Total Data Points: 0';
+                filteredDataDisplay.textContent = 'Data Points Displayed: 0';
 
                 const uniqueIds = new Set();
                 const australianEarthquakes = [];
                 const usgsEarthquakes = [];
+                const emscEarthquakes = [];
 
                 try {
-                    const [gaResult, usgsResult] = await Promise.allSettled([
+                    const [gaResult, usgsResult, emscResult] = await Promise.allSettled([
                         fetch(gaDataUrl),
-                        fetch(usgsDataUrl)
+                        fetch(usgsDataUrl),
+                        fetch(emscDataUrl)
                     ]);
 
                     if (gaResult.status === 'fulfilled' && gaResult.value.ok) {
@@ -417,18 +478,26 @@
                     } else {
                         console.error('Failed to fetch USGS data:', usgsResult.reason);
                     }
+                    
+                    if (emscResult.status === 'fulfilled' && emscResult.value.ok) {
+                         const data = await emscResult.value.json();
+                         processEmscData(data, uniqueIds, emscEarthquakes);
+                    } else {
+                        console.error('Failed to fetch EMSC data:', emscResult.reason);
+                    }
 
                     // Process and render the new combined data
-                    const combinedData = combineAndDeduplicate(australianEarthquakes, usgsEarthquakes);
+                    const combinedData = combineAndDeduplicate(australianEarthquakes, usgsEarthquakes, emscEarthquakes);
                     const filteredCombinedData = combinedData.filter(quake => quake.magnitude >= 1);
                     allEarthquakes = filteredCombinedData; // Store the full data for the slider
                     
                     if (allEarthquakes.length > 0) {
                         allEarthquakes.sort((a, b) => b.magnitude - a.magnitude);
+                        totalDataDisplay.textContent = `Total Data Points: ${allEarthquakes.length}`;
                         filterAndRenderEarthquakes(timeSlider.value); // Render with the default slider value
                         showMessage('success', `Successfully loaded and combined ${allEarthquakes.length} unique earthquakes!`);
                     } else {
-                        showMessage('error', 'No earthquake data found from either source.');
+                        showMessage('error', 'No earthquake data found from any source.');
                     }
                 } catch (error) {
                     console.error('Initial data fetching error:', error);
@@ -500,4 +569,3 @@
     </script>
 </body>
 </html>
-
