@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>3D Earthquake Visualizer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -111,10 +111,6 @@
 <body>
     <div class="info-box">
         <h3>Earthquake Data Visualization</h3>
-        <!--<p>Left-click and drag to rotate the globe.</p>
-        <p>Right-click and drag to pan the view.</p>
-        <p>Use the mouse wheel to zoom.</p>
-        <p>Click on an earthquake to see details.</p>-->
     </div>
 
     <div class="controls-container">
@@ -132,7 +128,6 @@
     <div id="errorMessage"></div>
     <div id="successMessage"></div>
     <div id="note-message">
-		<p><p/>
         <p>The difference between Total and Displayed is because duplicates and small tremors have been removed.</p>
     </div>
 
@@ -155,6 +150,9 @@
 
             const earthRadius = 100;
             let allEarthquakes = []; // This will store the full, unfiltered data
+            let isLoading = false;
+            let globeGroup = new THREE.Group();
+            scene.add(globeGroup);
 
             // --- Globe Creation ---
             const sphereGeometry = new THREE.SphereGeometry(earthRadius, 32, 32);
@@ -162,7 +160,7 @@
 
             const frontWireframeMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
             const frontWireframe = new THREE.LineSegments(wireframeGeometry, frontWireframeMaterial);
-            scene.add(frontWireframe);
+            globeGroup.add(frontWireframe);
 
             const backWireframeMaterial = new THREE.LineBasicMaterial({
                 color: 0x00ff00,
@@ -172,7 +170,7 @@
                 depthTest: false
             });
             const backWireframe = new THREE.LineSegments(wireframeGeometry, backWireframeMaterial);
-            scene.add(backWireframe);
+            globeGroup.add(backWireframe);
 
             // Function to convert spherical coordinates (lat, lon) to 3D Cartesian coordinates
             function latLonToVector3(lat, lon, radius) {
@@ -208,9 +206,9 @@
                             });
                             geometry.setFromPoints(points);
                             const frontLine = new THREE.Line(geometry, frontCountriesMaterial);
-                            scene.add(frontLine);
+                            globeGroup.add(frontLine);
                             const backLine = new THREE.Line(geometry, backCountriesMaterial);
-                            scene.add(backLine);
+                            globeGroup.add(backLine);
                         } else if (feature.geometry.type === 'MultiPolygon') {
                             feature.geometry.coordinates.forEach(polygon => {
                                 const geometry = new THREE.BufferGeometry();
@@ -220,9 +218,9 @@
                                 });
                                 geometry.setFromPoints(points);
                                 const frontLine = new THREE.Line(geometry, frontCountriesMaterial);
-                                scene.add(frontLine);
+                                globeGroup.add(frontLine);
                                 const backLine = new THREE.Line(geometry, backCountriesMaterial);
-                                scene.add(backLine);
+                                globeGroup.add(backLine);
                             });
                         }
                     });
@@ -253,7 +251,7 @@
             // Function to render the earthquake spheres from a given array
             function renderEarthquakes(earthquakeData) {
                 // Clear previous earthquake spheres
-                scene.children.filter(obj => obj.userData.isQuake).forEach(obj => scene.remove(obj));
+                globeGroup.children.filter(obj => obj.userData.isQuake).forEach(obj => globeGroup.remove(obj));
                 earthquakeSpheres = []; // Reset the array of earthquake spheres
 
                 earthquakeData.forEach(quake => {
@@ -281,7 +279,7 @@
                         place: quake.place,
                         source: quake.source
                     };
-                    scene.add(quakeSphere);
+                    globeGroup.add(quakeSphere);
                     earthquakeSpheres.push(quakeSphere);
                 });
             }
@@ -416,22 +414,10 @@
                 document.getElementById('filteredDataDisplay').textContent = `Data Points Displayed: ${filteredData.length}`;
             }
 
-
             // --- Data Loading from URL ---
             const loadDataBtn = document.getElementById('loadDataBtn');
             const gaDataUrl = 'https://earthquakes.ga.gov.au/geoserver/earthquakes/wfs?service=WFS&request=getfeature&typeNames=earthquakes:earthquakes_seven_days&outputFormat=application/json&CQL_FILTER=display_flag=%27Y%27';
-            // Updated USGS URL to fetch 21 days instead of 30
-            const usgsDataUrl = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson';
-
-            // Calculate dates for EMSC query for the last 21 days
-            const today = new Date();
-            const pastDate = new Date(today.getTime() - 21 * 24 * 60 * 60 * 1000);
-            const todayStr = today.toISOString().split('T')[0];
-            const pastDateStr = pastDate.toISOString().split('T')[0];
-            // Updated EMSC URL with start and end time parameters for a 21-day window
-            const emscDataUrl = `https://www.seismicportal.eu/fdsnws/event/1/query?format=json&nodata=404&start=${pastDateStr}&end=${todayStr}`;
-
-
+            
             // --- UI Elements ---
             const timeSlider = document.getElementById('timeSlider');
             const sliderValueDisplay = document.getElementById('sliderValue');
@@ -444,7 +430,9 @@
                 filterAndRenderEarthquakes(days);
             });
 
-            loadDataBtn.addEventListener('click', async () => {
+            // The main function to fetch and visualize all data
+            async function loadDataAndVisualize() {
+                isLoading = true;
                 loadDataBtn.disabled = true;
                 loadDataBtn.textContent = 'Loading...';
                 showMessage('success', 'Loading data from multiple sources...');
@@ -452,7 +440,17 @@
                 // Reset data displays
                 totalDataDisplay.textContent = 'Total Data Points: 0';
                 filteredDataDisplay.textContent = 'Data Points Displayed: 0';
+                allEarthquakes = [];
 
+                // Calculate dates for the USGS and EMSC queries for the last 21 days
+                const today = new Date();
+                const pastDate = new Date(today.getTime() - 21 * 24 * 60 * 60 * 1000);
+                const todayStr = today.toISOString().split('T')[0];
+                const pastDateStr = pastDate.toISOString().split('T')[0];
+
+                const usgsDataUrl = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${pastDateStr}&endtime=${todayStr}`;
+                const emscDataUrl = `https://www.seismicportal.eu/fdsnws/event/1/query?format=json&nodata=404&start=${pastDateStr}&end=${todayStr}`;
+                
                 const uniqueIds = new Set();
                 const australianEarthquakes = [];
                 const usgsEarthquakes = [];
@@ -480,8 +478,8 @@
                     }
                     
                     if (emscResult.status === 'fulfilled' && emscResult.value.ok) {
-                         const data = await emscResult.value.json();
-                         processEmscData(data, uniqueIds, emscEarthquakes);
+                        const data = await emscResult.value.json();
+                        processEmscData(data, uniqueIds, emscEarthquakes);
                     } else {
                         console.error('Failed to fetch EMSC data:', emscResult.reason);
                     }
@@ -505,8 +503,12 @@
                 } finally {
                     loadDataBtn.textContent = 'Load Live Data';
                     loadDataBtn.disabled = false;
+                    isLoading = false;
                 }
-            });
+            }
+
+            // --- Event Listeners ---
+            loadDataBtn.addEventListener('click', loadDataAndVisualize);
 
             // --- Click Event for Details ---
             const raycaster = new THREE.Raycaster();
@@ -560,6 +562,12 @@
             // --- Animation Loop ---
             function animate() {
                 requestAnimationFrame(animate);
+                
+                // Rotate the globe while data is loading
+                if (isLoading) {
+                    globeGroup.rotation.y += 0.001;
+                }
+
                 controls.update();
                 renderer.render(scene, camera);
             }
@@ -569,5 +577,3 @@
     </script>
 </body>
 </html>
-
-
