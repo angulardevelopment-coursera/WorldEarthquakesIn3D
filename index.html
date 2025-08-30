@@ -421,7 +421,7 @@
             const loadDataBtn = document.getElementById('loadDataBtn');
             const gaDataUrl = 'https://earthquakes.ga.gov.au/geoserver/earthquakes/wfs?service=WFS&request=getfeature&typeNames=earthquakes:earthquakes_seven_days&outputFormat=application/json&CQL_FILTER=display_flag=%27Y%27';
             // Updated USGS URL to fetch 21 days instead of 30
-            const usgsDataUrl = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_21day.geojson';
+            const usgsDataUrl = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson';
 
             // Calculate dates for EMSC query for the last 21 days
             const today = new Date();
@@ -569,4 +569,5 @@
     </script>
 </body>
 </html>
+
 
