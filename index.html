@@ -117,8 +117,8 @@
         <button id="loadDataBtn">Load Live Data</button>
         <div class="slider-container">
             <label for="timeSlider">Time Span (1-21 Days Ago):</label>
-            <input type="range" id="timeSlider" min="1" max="21" value="21">
-            <span id="sliderValue">21 Days</span>
+            <input type="range" id="timeSlider" min="1" max="21" value="1">
+            <span id="sliderValue">1 Day</span>
             <div class="data-display" id="totalDataDisplay">Total Data Points: 0</div>
             <div class="data-display" id="filteredDataDisplay">Data Points Displayed: 0</div>
         </div>
@@ -165,7 +165,7 @@
             const backWireframeMaterial = new THREE.LineBasicMaterial({
                 color: 0x00ff00,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.05,
                 depthWrite: false,
                 depthTest: false
             });
@@ -192,7 +192,7 @@
                     const backCountriesMaterial = new THREE.LineBasicMaterial({
                         color: 0xffffff,
                         transparent: true,
-                        opacity: 0.1,
+                        opacity: 0.05,
                         depthWrite: false,
                         depthTest: false
                     });
@@ -577,3 +577,4 @@
     </script>
 </body>
 </html>
+
