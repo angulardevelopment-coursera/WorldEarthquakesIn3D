@@ -1,0 +1,3 @@
+## Add a separate slider to set which date to visualize . Problem being - if the other slider is set at maximum days 
+and this one is set at anything more than one day , there will be errors thrown as dates will be out of range .
+## Add in the ability to animate one day at a time .
