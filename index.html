@@ -7,6 +7,10 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; color: #fff; }
+        #app-container { display: flex; width: 100vw; height: 100vh; }
+        #canvas-container { flex: 1; position: relative; overflow: hidden; }
+        #sidebar { width: 300px; background-color: #111; border-left: 1px solid #333; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .placeholder-box { border: 1px dashed #555; padding: 20px; text-align: center; color: #888; width: 100%; }
         canvas { display: block; }
         .info-box {
             position: absolute;
@@ -26,22 +30,24 @@
             z-index: 100;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             align-items: flex-end;
         }
         .slider-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-color: rgba(0, 0, 0, 0.5);
-            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 8px;
             border-radius: 5px;
+            border: 1px solid #333;
         }
         .data-display {
-            font-size: 0.9em;
-            margin-top: 5px;
+            font-size: 0.8em;
+            margin-top: 3px;
             text-align: center;
             width: 100%;
+            color: #aaa;
         }
         #tooltip {
             position: absolute;
@@ -91,55 +97,201 @@
             padding: 10px;
             border-radius: 5px;
             z-index: 100;
-            display: none;
+            display: true;
             max-width: 300px;
         }
-        #note-message {
+		#note-message{
             position: absolute;
-            bottom: 10px;
+            bottom: 30px;
             left: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color:none;
             color: white;
             font-family: sans-serif;
             padding: 10px;
             border-radius: 5px;
             z-index: 100;
-            font-size: 0.9em;
+            display: true;
+            max-width: 900px;
+		}
+        .zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        .zoom-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Double range slider custom styling */
+        .range-slider-wrapper {
+            position: relative;
+            flex: 1;
+            height: 30px;
+            display: flex;
+            align-items: center;
+        }
+        .range-slider-track {
+            position: absolute;
+            width: 100%;
+            height: 6px;
+            background-color: #444;
+            border-radius: 3px;
+            z-index: 1;
+        }
+        .range-slider-highlight {
+            position: absolute;
+            height: 6px;
+            background-color: #00ff00;
+            border-radius: 3px;
+            z-index: 2;
+        }
+        .range-slider-wrapper input[type="range"] {
+            position: absolute;
+            width: 100%;
+            height: 5px;
+            pointer-events: none;
+            -webkit-appearance: none;
+            background: none;
+            outline: none;
+            margin: 0;
+            padding: 0;
+        }
+        .range-slider-wrapper input[type="range"]::-webkit-slider-thumb {
+            pointer-events: auto;
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #fff;
+            cursor: pointer;
+            border: 2px solid #00ff00;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        .range-slider-wrapper input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        .range-slider-wrapper input[type="range"]::-moz-range-thumb {
+            pointer-events: auto;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #fff;
+            cursor: pointer;
+            border: 2px solid #00ff00;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        .range-slider-wrapper input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
+        #playBtn:hover {
+            color: #00ff00 !important;
+            transform: scale(1.2);
+        }
+
+        .range-slider-row {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            gap: 10px;
+        }
+        .play-btn {
+            background: none;
+            border: 1px solid #fff;
+            color: #fff;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 1.2em;
+            transition: all 0.2s;
         }
     </style>
 </head>
 <body>
-    <div class="info-box">
-        <h3>Earthquake Data Visualization</h3>
-    </div>
+    <div id="app-container">
+        <div id="canvas-container">
+            <div class="info-box">
+                <h3>Earthquake Data Visualization</h3>
+            </div>
 
-    <div class="controls-container">
-        <button id="loadDataBtn">Load Live Data</button>
-        <div class="slider-container">
-            <label for="timeSlider">Time Span (1-21 Days Ago):</label>
-            <input type="range" id="timeSlider" min="1" max="21" value="1">
-            <span id="sliderValue">1 Day</span>
-            <div class="data-display" id="totalDataDisplay">Total Data Points: 0</div>
-            <div class="data-display" id="filteredDataDisplay">Data Points Displayed: 0</div>
+            <div class="controls-container">
+                <button id="loadDataBtn">Load Live Data</button>
+                <div class="slider-container" style="width: 260px; gap: 8px; align-items: stretch;">
+                    <label style="font-weight: bold; font-size: 0.9em; text-align: center;">Play Window Boundaries:</label>
+                    <div style="display: flex; gap: 5px;">
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <span style="font-size: 0.8em; color: #aaa; text-align: center;">Start Date</span>
+                            <input type="date" id="animStartDate" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em;">
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <span style="font-size: 0.8em; color: #aaa; text-align: center;">End Date</span>
+                            <input type="date" id="animEndDate" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em;">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; margin-top: 5px;">
+                        <span style="font-size: 0.8em; color: #aaa; margin-bottom: 2px;">Days to Display (Window Size)</span>
+                        <input type="number" id="displayDays" min="1" max="21" value="3" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em;">
+                    </div>
+                    
+                    <button id="playBtn" class="play-btn" style="margin-top: 10px; width: 100%; border: 1px solid #00ff00; color: #00ff00; padding: 6px; border-radius: 4px; font-weight: bold;">▶ Play Animation</button>
+                    
+                    <div class="data-display" id="totalDataDisplay">Total Data Points: 0</div>
+                    <div class="data-display" id="filteredDataDisplay">Data Points Displayed: 0</div>
+                </div>
+            </div>
+            
+            <div id="tooltip"></div>
+            <div id="errorMessage"></div>
+            <div id="successMessage"></div>
+			<div class="zoom-controls">
+                <button id="zoomInBtn" class="zoom-btn">+</button>
+                <button id="zoomOutBtn" class="zoom-btn">-</button>
+            </div>
+            <div id="note-message">
+                <p>The difference between Total and Displayed is because duplicates and small tremors have been removed.</p>
+            </div>
         </div>
-    </div>
-    
-    <div id="tooltip"></div>
-    <div id="errorMessage"></div>
-    <div id="successMessage"></div>
-    <div id="note-message">
-        <p>The difference between Total and Displayed is because duplicates and small tremors have been removed.</p>
+
+        <div id="sidebar">
+            <div class="placeholder-box">
+                [ System Metric Display Placeholder ]
+            </div>
+            <div class="placeholder-box" style="margin-top: 20px;">
+                [ Ad Placeholder ]
+            </div>
+        </div>
     </div>
 
     <script>
         window.onload = function() {
             // --- Scene Setup ---
             const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const container = document.getElementById('canvas-container');
+            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setClearColor(0x000000);
-            document.body.appendChild(renderer.domElement);
+            container.appendChild(renderer.domElement);
 
             // --- Camera Controls ---
             const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -158,7 +310,11 @@
             const sphereGeometry = new THREE.SphereGeometry(earthRadius, 32, 32);
             const wireframeGeometry = new THREE.WireframeGeometry(sphereGeometry);
 
-            const frontWireframeMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+            const frontWireframeMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.20 
+            });
             const frontWireframe = new THREE.LineSegments(wireframeGeometry, frontWireframeMaterial);
             globeGroup.add(frontWireframe);
 
@@ -171,6 +327,7 @@
             });
             const backWireframe = new THREE.LineSegments(wireframeGeometry, backWireframeMaterial);
             globeGroup.add(backWireframe);
+
 
             // Function to convert spherical coordinates (lat, lon) to 3D Cartesian coordinates
             function latLonToVector3(lat, lon, radius) {
@@ -185,12 +342,14 @@
             }
 
             // --- Country Outlines ---
+            const COUNTRY_OUTLINE_COLOR = 0x00ffff; // Cyan for high contrast
+
             fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
                 .then(response => response.json())
                 .then(data => {
-                    const frontCountriesMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                    const frontCountriesMaterial = new THREE.LineBasicMaterial({ color: COUNTRY_OUTLINE_COLOR });
                     const backCountriesMaterial = new THREE.LineBasicMaterial({
-                        color: 0xffffff,
+                        color: COUNTRY_OUTLINE_COLOR,
                         transparent: true,
                         opacity: 0.05,
                         depthWrite: false,
@@ -248,10 +407,27 @@
                 }, 5000);
             }
 
+            // Helper function to dispose of Three.js objects to prevent memory leaks
+            function disposeQuakeObject(obj) {
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) {
+                        obj.material.forEach(m => m.dispose());
+                    } else {
+                        obj.material.dispose();
+                    }
+                }
+            }
+
             // Function to render the earthquake spheres from a given array
             function renderEarthquakes(earthquakeData) {
-                // Clear previous earthquake spheres
-                globeGroup.children.filter(obj => obj.userData.isQuake).forEach(obj => globeGroup.remove(obj));
+                // Clear previous earthquake spheres and explicitly dispose them to prevent WebGL memory leaks
+                const toRemove = globeGroup.children.filter(obj => obj.userData.isQuake);
+                toRemove.forEach(obj => {
+                    disposeQuakeObject(obj);
+                    globeGroup.remove(obj);
+                });
+                
                 earthquakeSpheres = []; // Reset the array of earthquake spheres
 
                 earthquakeData.forEach(quake => {
@@ -262,10 +438,15 @@
                     const sphereSize = Math.pow(1.5, quake.magnitude) * sizeMultiplier;
                     
                     const sphereGeometry = new THREE.SphereGeometry(sphereSize, 16, 16);
-                    let color = 0xff0000;
-                    if (quake.magnitude < 6) {
-                        color = 0xffff00;
+                    
+                    // Dynamic Depth Color Coding
+                    let color = 0xff0000; // Default: Shallow (0-30km)
+                    if (quake.depth > 30 && quake.depth <= 100) {
+                        color = 0xff8800; // Medium (31-100km)
+                    } else if (quake.depth > 100) {
+                        color = 0xaa00ff; // Deep Mantle (100km+)
                     }
+
                     const material = new THREE.MeshBasicMaterial({ color: color, wireframe: false });
                     const quakeSphere = new THREE.Mesh(sphereGeometry, material);
                     quakeSphere.position.copy(quakePosition);
@@ -281,6 +462,22 @@
                     };
                     globeGroup.add(quakeSphere);
                     earthquakeSpheres.push(quakeSphere);
+
+                    // --- Drop-Down Projection (Depth Stalk) ---
+                    if (quake.depth > 0) {
+                        const stalkGeometry = new THREE.BufferGeometry().setFromPoints([
+                            latLonToVector3(quake.latitude, quake.longitude, earthRadius), // Surface position
+                            quakePosition // Underground position
+                        ]);
+                        const stalkMaterial = new THREE.LineBasicMaterial({ 
+                            color: color, 
+                            transparent: true, 
+                            opacity: 1.0 // Increased opacity for better visibility
+                        });
+                        const stalk = new THREE.Line(stalkGeometry, stalkMaterial);
+                        stalk.userData = { isQuake: true }; // Tag for removal
+                        globeGroup.add(stalk);
+                    }
                 });
             }
 
@@ -402,15 +599,13 @@
             }
 
             /**
-             * Filters the global earthquake data by a number of days and re-renders the visualization.
-             * @param {number} days - The number of days from the present to filter by.
+             * Filters the global earthquake data by a date range and re-renders the visualization.
+             * @param {Date} startDate - The start of the time window.
+             * @param {Date} endDate - The end of the time window.
              */
-            function filterAndRenderEarthquakes(days) {
-                const now = new Date();
-                const pastDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-                const filteredData = allEarthquakes.filter(quake => quake.time >= pastDate);
+            function filterAndRenderEarthquakes(startDate, endDate) {
+                const filteredData = allEarthquakes.filter(quake => quake.time >= startDate && quake.time <= endDate);
                 renderEarthquakes(filteredData);
-                // Update the display for the number of filtered data points
                 document.getElementById('filteredDataDisplay').textContent = `Data Points Displayed: ${filteredData.length}`;
             }
 
@@ -419,15 +614,81 @@
             const gaDataUrl = 'https://earthquakes.ga.gov.au/geoserver/earthquakes/wfs?service=WFS&request=getfeature&typeNames=earthquakes:earthquakes_seven_days&outputFormat=application/json&CQL_FILTER=display_flag=%27Y%27';
             
             // --- UI Elements ---
-            const timeSlider = document.getElementById('timeSlider');
-            const sliderValueDisplay = document.getElementById('sliderValue');
+            const animStartDateInput = document.getElementById('animStartDate');
+            const animEndDateInput = document.getElementById('animEndDate');
+            const displayDaysInput = document.getElementById('displayDays');
+            const playBtn = document.getElementById('playBtn');
             const totalDataDisplay = document.getElementById('totalDataDisplay');
             const filteredDataDisplay = document.getElementById('filteredDataDisplay');
 
-            timeSlider.addEventListener('input', (event) => {
-                const days = event.target.value;
-                sliderValueDisplay.textContent = `${days} Days`;
-                filterAndRenderEarthquakes(days);
+            let isPlaying = false;
+            let playInterval = null;
+
+            function updateView() {
+                const endStr = animEndDateInput.value;
+                const daysStr = displayDaysInput.value;
+                
+                if (!endStr) return;
+                
+                const endDate = new Date(endStr);
+                const days = parseInt(daysStr) || 3;
+                
+                const startDate = new Date(endDate);
+                startDate.setDate(startDate.getDate() - days);
+                
+                filterAndRenderEarthquakes(startDate, endDate);
+            }
+
+            animEndDateInput.addEventListener('change', updateView);
+            displayDaysInput.addEventListener('input', updateView);
+
+            playBtn.addEventListener('click', () => {
+                if (isPlaying) {
+                    clearInterval(playInterval);
+                    playBtn.textContent = '▶ Play Animation';
+                    isPlaying = false;
+                    return;
+                }
+                
+                const startStr = animStartDateInput.value;
+                const endStr = animEndDateInput.value;
+                const daysStr = displayDaysInput.value;
+                
+                if (!startStr || !endStr) {
+                    alert("Please select both Start and End dates.");
+                    return;
+                }
+                
+                isPlaying = true;
+                playBtn.textContent = '⏸ Pause';
+                
+                const finalEndDate = new Date(endStr);
+                const days = parseInt(daysStr) || 3;
+                
+                // Start the sliding window at the selected Start Date
+                let currentEndDate = new Date(startStr);
+                
+                playInterval = setInterval(() => {
+                    // Update the End Date picker visually to show progress
+                    animEndDateInput.value = currentEndDate.toISOString().split('T')[0];
+                    
+                    const currentStartDate = new Date(currentEndDate);
+                    currentStartDate.setDate(currentStartDate.getDate() - days);
+                    
+                    filterAndRenderEarthquakes(currentStartDate, currentEndDate);
+                    
+                    if (currentEndDate >= finalEndDate) {
+                        clearInterval(playInterval);
+                        isPlaying = false;
+                        playBtn.textContent = '▶ Play Animation';
+                        
+                        // Return to the original End Date and restore view
+                        animEndDateInput.value = endStr;
+                        updateView();
+                    } else {
+                        currentEndDate.setDate(currentEndDate.getDate() + 1);
+                    }
+                }, 800);
             });
 
             // The main function to fetch and visualize all data
@@ -492,7 +753,7 @@
                     if (allEarthquakes.length > 0) {
                         allEarthquakes.sort((a, b) => b.magnitude - a.magnitude);
                         totalDataDisplay.textContent = `Total Data Points: ${allEarthquakes.length}`;
-                        filterAndRenderEarthquakes(timeSlider.value); // Render with the default slider value
+                        updateView(); // Render with the current date filters
                         showMessage('success', `Successfully loaded and combined ${allEarthquakes.length} unique earthquakes!`);
                     } else {
                         showMessage('error', 'No earthquake data found from any source.');
@@ -510,14 +771,26 @@
             // --- Event Listeners ---
             loadDataBtn.addEventListener('click', loadDataAndVisualize);
 
+            const zoomInBtn = document.getElementById('zoomInBtn');
+            const zoomOutBtn = document.getElementById('zoomOutBtn');
+
+            zoomInBtn.addEventListener('click', () => {
+                camera.position.multiplyScalar(0.9);
+            });
+
+            zoomOutBtn.addEventListener('click', () => {
+                camera.position.multiplyScalar(1.1);
+            });
+
             // --- Click Event for Details ---
             const raycaster = new THREE.Raycaster();
             const mouse = new THREE.Vector2();
             const tooltip = document.getElementById('tooltip');
 
             function onClick(event) {
-                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                const rect = container.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
                 raycaster.setFromCamera(mouse, camera);
 
@@ -554,9 +827,10 @@
             
             // Handle window resizing
             window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
+                const container = document.getElementById('canvas-container');
+                camera.aspect = container.clientWidth / container.clientHeight;
                 camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setSize(container.clientWidth, container.clientHeight);
             });
 
             // --- Animation Loop ---
@@ -577,4 +851,3 @@
     </script>
 </body>
 </html>
-
