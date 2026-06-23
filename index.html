@@ -235,22 +235,22 @@
 
             <div class="controls-container">
                 <button id="loadDataBtn">Load Live Data</button>
-                <div class="slider-container" style="width: 260px; gap: 8px; align-items: stretch;">
+                <div class="slider-container" style="width: 120px; gap: 8px; align-items: stretch;">
                     <label style="font-weight: bold; font-size: 0.9em; text-align: center;">Play Window Boundaries:</label>
-                    <div style="display: flex; gap: 5px;">
-                        <div style="flex: 1; display: flex; flex-direction: column;">
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <div style="display: flex; flex-direction: column;">
                             <span style="font-size: 0.8em; color: #aaa; text-align: center;">Start Date</span>
-                            <input type="date" id="animStartDate" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em;">
+                            <input type="date" id="animStartDate" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em; width: 100%;">
                         </div>
-                        <div style="flex: 1; display: flex; flex-direction: column;">
+                        <div style="display: flex; flex-direction: column;">
                             <span style="font-size: 0.8em; color: #aaa; text-align: center;">End Date</span>
-                            <input type="date" id="animEndDate" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em;">
+                            <input type="date" id="animEndDate" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em; width: 100%;">
                         </div>
                     </div>
                     
                     <div style="display: flex; flex-direction: column; margin-top: 5px;">
                         <span style="font-size: 0.8em; color: #aaa; margin-bottom: 2px;">Days to Display (Window Size)</span>
-                        <input type="number" id="displayDays" min="1" max="21" value="3" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em;">
+                        <input type="number" id="displayDays" min="1" max="21" value="1" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em; width: 100%;">
                     </div>
                     
                     <button id="playBtn" class="play-btn" style="margin-top: 10px; width: 100%; border: 1px solid #00ff00; color: #00ff00; padding: 6px; border-radius: 4px; font-weight: bold;">▶ Play Animation</button>
@@ -623,6 +623,7 @@
 
             let isPlaying = false;
             let playInterval = null;
+            let isDataLoaded = false;
 
             function updateView() {
                 const endStr = animEndDateInput.value;
@@ -643,6 +644,11 @@
             displayDaysInput.addEventListener('input', updateView);
 
             playBtn.addEventListener('click', () => {
+                if (!isDataLoaded) {
+                    alert("Please click 'Load Live Data' first before playing the animation.");
+                    return;
+                }
+
                 if (isPlaying) {
                     clearInterval(playInterval);
                     playBtn.textContent = '▶ Play Animation';
@@ -694,6 +700,7 @@
             // The main function to fetch and visualize all data
             async function loadDataAndVisualize() {
                 isLoading = true;
+                isDataLoaded = false;
                 loadDataBtn.disabled = true;
                 loadDataBtn.textContent = 'Loading...';
                 showMessage('success', 'Loading data from multiple sources...');
@@ -755,6 +762,7 @@
                         totalDataDisplay.textContent = `Total Data Points: ${allEarthquakes.length}`;
                         updateView(); // Render with the current date filters
                         showMessage('success', `Successfully loaded and combined ${allEarthquakes.length} unique earthquakes!`);
+                        isDataLoaded = true;
                     } else {
                         showMessage('error', 'No earthquake data found from any source.');
                     }
@@ -845,6 +853,10 @@
                 controls.update();
                 renderer.render(scene, camera);
             }
+
+            // --- Initialization ---
+            const today = new Date();
+            animEndDateInput.value = today.toISOString().split('T')[0];
 
             animate();
         };
