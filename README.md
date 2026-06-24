@@ -2,4 +2,4 @@
 
 We have about 4,200 earthquakes a week , and this means that we need an easy way to visualize where earthquakes 
 have occurred across the world , including the ability to see how deep
-they were , with a slider to adjust for just the past day - right up to the past three weeks . 
+they were , with filtering to adjust for just the past day - right up to the past three weeks , as well as a cool animation . 
