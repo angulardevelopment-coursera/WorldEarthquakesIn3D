@@ -1,8 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>3D Earthquake Visualizer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Earthquakes in 3D | Interactive Global Earthquake Visualisation</title>
+    <meta name="description" content="Explore earthquakes around the world with an interactive 3D globe. Visualise earthquake locations, magnitudes and depths using data from Geoscience Australia and the USGS.">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Angular Development">
+    <meta name="theme-color" content="#05080b">
+
+    <link rel="canonical" href="https://angulardevelopment-coursera.github.io/WorldEarthquakesIn3D/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="World Earthquakes in 3D">
+    <meta property="og:description" content="Explore recent earthquakes around the world on an interactive 3D globe, using data from Geoscience Australia and the USGS.">
+    <meta property="og:url" content="https://angulardevelopment-coursera.github.io/WorldEarthquakesIn3D/">
+    <meta property="og:site_name" content="World Earthquakes in 3D">
+
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="World Earthquakes in 3D">
+    <meta name="twitter:description" content="Explore recent earthquakes around the world on an interactive 3D globe.">
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -124,7 +140,7 @@
     <div id="errorMessage"></div>
     <div id="successMessage"></div>
     <div id="note-message">
-        <p>Note: The data shown is a combination of sources from Geoscience Australia (last 7 days) and USGS (last 30 days). The date/time values are displayed in your local time.</p>
+        <p>Note: The data shown is a combination of sources from Geoscience Australia (last 7 days) and USGS (last 21 days). The date/time values are displayed in your local time.</p>
     </div>
 
     <script>
