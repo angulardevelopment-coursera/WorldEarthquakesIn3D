@@ -1,241 +1,400 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>3D Earthquake Visualizer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Earthquakes in 3D | Interactive Global Earthquake Visualisation</title>
+    <meta name="description" content="Explore earthquakes around the world with an interactive 3D globe. Visualise earthquake locations, magnitudes and depths using data from Geoscience Australia and the USGS.">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Angular Development">
+    <meta name="theme-color" content="#05080b">
+
+    <link rel="canonical" href="https://angulardevelopment-coursera.github.io/WorldEarthquakesIn3D/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="World Earthquakes in 3D">
+    <meta property="og:description" content="Explore recent earthquakes around the world on an interactive 3D globe, using data from Geoscience Australia and the USGS.">
+    <meta property="og:url" content="https://angulardevelopment-coursera.github.io/WorldEarthquakesIn3D/">
+    <meta property="og:site_name" content="World Earthquakes in 3D">
+
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="World Earthquakes in 3D">
+    <meta name="twitter:description" content="Explore recent earthquakes around the world on an interactive 3D globe.">	
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
-    <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; color: #fff; }
-        #app-container { display: flex; width: 100vw; height: 100vh; }
-        #canvas-container { flex: 1; position: relative; overflow: hidden; }
-        #sidebar { width: 300px; background-color: #111; border-left: 1px solid #333; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .placeholder-box { border: 1px dashed #555; padding: 20px; text-align: center; color: #888; width: 100%; }
-        canvas { display: block; }
+<style>
+        :root {
+            color-scheme: dark;
+            --page-bg: #080d12;
+            --panel-bg: #111a22;
+            --panel-border: #263746;
+            --text-main: #e8eef3;
+            --text-muted: #b7c5d0;
+            --accent: #55d68b;
+            --link: #79c7ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            margin: 0;
+            background: var(--page-bg);
+            color: var(--text-main);
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.55;
+        }
+
+        button, input { font: inherit; }
+
+        #app-container { width: 100%; }
+
+        .visualisation {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            height: 100svh;
+            min-height: 520px;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #globeCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+        }
+
+        .info-box,
+        .slider-container,
+        #note-message,
+        #tooltip,
+        .message {
+            background: rgba(0, 0, 0, 0.76);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 7px;
+            backdrop-filter: blur(5px);
+        }
+
         .info-box {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            font-family: sans-serif;
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 100;
+            top: 14px;
+            left: 14px;
+            z-index: 5;
+            max-width: 280px;
+            padding: 10px 14px;
+            pointer-events: none;
         }
+
+        .info-box h2 {
+            margin: 0 0 5px;
+            font-size: 1rem;
+            color: var(--accent);
+        }
+
+        .info-box p {
+            margin: 3px 0;
+            font-size: 0.82rem;
+        }
+
         .controls-container {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 100;
+            top: 14px;
+            right: 14px;
+            z-index: 6;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
             align-items: flex-end;
+            max-width: min(290px, calc(100% - 28px));
         }
+
+        #loadDataBtn {
+            padding: 9px 14px;
+            border: 1px solid #d8e3e9;
+            border-radius: 6px;
+            background: rgba(13, 25, 32, 0.92);
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        #loadDataBtn:hover:not(:disabled) {
+            background: #1c3944;
+            border-color: var(--accent);
+        }
+
+        #loadDataBtn:disabled {
+            opacity: 0.65;
+            cursor: wait;
+        }
+
+        .data-summary {
+            width: 250px;
+            max-width: 100%;
+            padding: 8px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 7px;
+            background: rgba(0, 0, 0, 0.76);
+            color: #d4dde3;
+            font-size: 0.75rem;
+            line-height: 1.45;
+            text-align: left;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            right: 16px;
+            bottom: 76px;
+            z-index: 7;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .zoom-btn {
+            width: 38px;
+            height: 38px;
+            border: 1px solid rgba(255,255,255,0.45);
+            border-radius: 6px;
+            background: rgba(0,0,0,0.78);
+            color: #fff;
+            font-size: 1.35rem;
+            cursor: pointer;
+        }
+
+        .zoom-btn:hover { border-color: var(--accent); }
+
+        .data-display {
+            color: #d4dde3;
+            font-size: 0.72rem;
+            text-align: center;
+        }
+
+        .about-link {
+            position: absolute;
+            right: 14px;
+            bottom: 18px;
+            z-index: 7;
+            display: inline-block;
+            padding: 9px 13px;
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            background: rgba(8, 20, 25, 0.92);
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .about-link:hover {
+            background: #1c3944;
+            color: #fff;
+        }
+
         .slider-container {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #333;
+            align-items: stretch;
+            gap: 5px;
+            width: 250px;
+            max-width: 100%;
+            padding: 10px 12px;
         }
-        .data-display {
-            font-size: 0.8em;
-            margin-top: 3px;
+
+        .slider-container label,
+        #sliderValue {
+            font-size: 0.85rem;
             text-align: center;
-            width: 100%;
-            color: #aaa;
         }
+
+        #timeSlider { width: 100%; accent-color: var(--accent); }
+
+        #sliderValue {
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        #note-message {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            z-index: 5;
+            max-width: min(520px, calc(100% - 24px));
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            color: #d4dde3;
+            pointer-events: none;
+        }
+
+        #note-message p { margin: 0; }
+
         #tooltip {
             position: absolute;
-            background-color: rgba(0, 0, 0, 0.75);
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-            font-family: sans-serif;
-            font-size: 12px;
-            pointer-events: none;
+            z-index: 10;
             display: none;
-            z-index: 200;
-        }
-        #loadDataBtn {
-            padding: 8px 12px;
-            border: 1px solid white;
-            border-radius: 5px;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            cursor: pointer;
-            font-family: sans-serif;
-            transition: background-color 0.2s;
-        }
-        #loadDataBtn:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-        #errorMessage {
-            position: absolute;
-            top: 50px;
-            right: 10px;
-            background-color: rgba(150, 0, 0, 0.75);
-            color: white;
-            font-family: sans-serif;
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 100;
-            display: none;
-            max-width: 300px;
-        }
-        #successMessage {
-            position: absolute;
-            top: 50px;
-            right: 10px;
-            background-color: rgba(0, 150, 0, 0.75);
-            color: white;
-            font-family: sans-serif;
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 100;
-            display: true;
-            max-width: 300px;
-        }
-		#note-message{
-            position: absolute;
-            bottom: 30px;
-            left: 10px;
-            background-color:none;
-            color: white;
-            font-family: sans-serif;
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 100;
-            display: true;
-            max-width: 900px;
-		}
-        .zoom-controls {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        .zoom-btn {
-            width: 40px;
-            height: 40px;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            border: 1px solid white;
-            border-radius: 5px;
-            font-size: 20px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s;
-        }
-        .zoom-btn:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-
-        /* Double range slider custom styling */
-        .range-slider-wrapper {
-            position: relative;
-            flex: 1;
-            height: 30px;
-            display: flex;
-            align-items: center;
-        }
-        .range-slider-track {
-            position: absolute;
-            width: 100%;
-            height: 6px;
-            background-color: #444;
-            border-radius: 3px;
-            z-index: 1;
-        }
-        .range-slider-highlight {
-            position: absolute;
-            height: 6px;
-            background-color: #00ff00;
-            border-radius: 3px;
-            z-index: 2;
-        }
-        .range-slider-wrapper input[type="range"] {
-            position: absolute;
-            width: 100%;
-            height: 5px;
-            pointer-events: none;
-            -webkit-appearance: none;
-            background: none;
-            outline: none;
-            margin: 0;
-            padding: 0;
-        }
-        .range-slider-wrapper input[type="range"]::-webkit-slider-thumb {
-            pointer-events: auto;
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background-color: #fff;
-            cursor: pointer;
-            border: 2px solid #00ff00;
-            box-shadow: 0 0 4px rgba(0,0,0,0.5);
-            transition: transform 0.1s;
-        }
-        .range-slider-wrapper input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.2);
-        }
-        .range-slider-wrapper input[type="range"]::-moz-range-thumb {
-            pointer-events: auto;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background-color: #fff;
-            cursor: pointer;
-            border: 2px solid #00ff00;
-            box-shadow: 0 0 4px rgba(0,0,0,0.5);
-            transition: transform 0.1s;
-        }
-        .range-slider-wrapper input[type="range"]::-moz-range-thumb:hover {
-            transform: scale(1.2);
-        }
-        #playBtn:hover {
-            color: #00ff00 !important;
-            transform: scale(1.2);
-        }
-
-        .range-slider-row {
-            display: flex;
-            align-items: center;
-            width: 100%;
-            gap: 10px;
-        }
-        .play-btn {
-            background: none;
-            border: 1px solid #fff;
+            max-width: min(310px, calc(100vw - 24px));
+            padding: 10px 12px;
             color: #fff;
-            cursor: pointer;
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-size: 1.2em;
-            transition: all 0.2s;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            pointer-events: none;
+            overflow-wrap: anywhere;
+        }
+
+        .message {
+            position: absolute;
+            top: 100px;
+            right: 14px;
+            z-index: 8;
+            display: none;
+            max-width: min(340px, calc(100% - 28px));
+            padding: 10px 13px;
+            font-size: 0.85rem;
+        }
+
+        .message.error { border-color: #c85a5a; }
+        .message.success { border-color: #42b978; }
+
+        .content-section {
+            scroll-margin-top: 18px;
+            width: min(960px, calc(100% - 40px));
+            margin: 0 auto;
+            padding: 48px 0 60px;
+        }
+
+        .content-section h1 {
+            margin: 0 0 12px;
+            color: #fff;
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            line-height: 1.2;
+        }
+
+        .content-section h2 {
+            margin: 30px 0 8px;
+            color: var(--accent);
+            font-size: 1.25rem;
+        }
+
+        .content-section p,
+        .content-section li {
+            color: var(--text-muted);
+        }
+
+        .content-section a {
+            color: var(--link);
+            text-underline-offset: 3px;
+        }
+
+        .content-section a:hover { color: #b7e3ff; }
+
+        .source-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 14px;
+            margin-top: 16px;
+        }
+
+        .source-card {
+            padding: 16px;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+        }
+
+        .source-card h3 {
+            margin: 0 0 6px;
+            color: #fff;
+            font-size: 1rem;
+        }
+
+        .source-card p { margin: 0; font-size: 0.9rem; }
+
+        .footer {
+            border-top: 1px solid var(--panel-border);
+            padding: 18px 20px;
+            color: #8999a5;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        a:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
+        }
+
+        @media (max-width: 650px) {
+            .visualisation { min-height: 560px; }
+
+            .info-box {
+                top: 10px;
+                left: 10px;
+                max-width: 185px;
+                padding: 8px 10px;
+            }
+
+            .info-box h2 { font-size: 0.9rem; }
+            .info-box p { font-size: 0.72rem; }
+
+            .controls-container {
+                top: 10px;
+                right: 10px;
+                max-width: 170px;
+            }
+
+            .slider-container { width: 170px; padding: 8px; }
+            .slider-container label,
+            #sliderValue { font-size: 0.72rem; }
+
+            #loadDataBtn { padding: 7px 9px; font-size: 0.78rem; }
+            .data-summary { width: 170px; font-size: 0.68rem; }
+            .zoom-controls { right: 10px; bottom: 66px; }
+            .zoom-btn { width: 32px; height: 32px; }
+            .about-link {
+                right: 10px;
+                bottom: 68px;
+                padding: 7px 9px;
+                font-size: 0.72rem;
+            }
+
+            #note-message {
+                bottom: 8px;
+                left: 8px;
+                max-width: calc(100% - 16px);
+                font-size: 0.68rem;
+            }
+
+            .content-section {
+                width: min(100% - 32px, 960px);
+                padding: 34px 0 44px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .info-box { max-width: 150px; }
+            .info-box p:nth-of-type(n+3) { display: none; }
+            .controls-container { max-width: 145px; }
+            .slider-container { width: 145px; }
         }
     </style>
 </head>
 <body>
     <div id="app-container">
-        <div id="canvas-container">
+        <section class="visualisation" aria-label="Interactive three-dimensional earthquake globe">
             <div class="info-box">
-                <h3>Earthquake Data Visualization</h3>
+                <h2>Earthquake Data Visualisation</h2>
+                <p>Explore recent earthquakes around the world.</p>
+                <p>Load live data, rotate the globe and select markers for details.</p>
             </div>
 
             <div class="controls-container">
                 <button id="loadDataBtn">Load Live Data</button>
-                <div class="slider-container" style="width: 120px; gap: 8px; align-items: stretch;">
+                <div class="slider-container" style="width: 170px; gap: 8px; align-items: stretch;">
                     <label style="font-weight: bold; font-size: 0.9em; text-align: center;">Play Window Boundaries:</label>
                     <div style="display: flex; flex-direction: column; gap: 5px;">
                         <div style="display: flex; flex-direction: column;">
@@ -247,51 +406,113 @@
                             <input type="date" id="animEndDate" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em; width: 100%;">
                         </div>
                     </div>
-                    
+
                     <div style="display: flex; flex-direction: column; margin-top: 5px;">
                         <span style="font-size: 0.8em; color: #aaa; margin-bottom: 2px;">Days to Display (Window Size)</span>
                         <input type="number" id="displayDays" min="1" max="21" value="1" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px; border-radius: 3px; font-size: 0.8em; width: 100%;">
                     </div>
-                    
+
                     <button id="playBtn" class="play-btn" style="margin-top: 10px; width: 100%; border: 1px solid #00ff00; color: #00ff00; padding: 6px; border-radius: 4px; font-weight: bold;">▶ Play Animation</button>
-                    
+
                     <div class="data-display" id="totalDataDisplay">Total Data Points: 0</div>
                     <div class="data-display" id="filteredDataDisplay">Data Points Displayed: 0</div>
                 </div>
             </div>
-            
+
             <div id="tooltip"></div>
-            <div id="errorMessage"></div>
-            <div id="successMessage"></div>
-			<div class="zoom-controls">
-                <button id="zoomInBtn" class="zoom-btn">+</button>
-                <button id="zoomOutBtn" class="zoom-btn">-</button>
+            <div id="errorMessage" class="message error"></div>
+            <div id="successMessage" class="message success"></div>
+
+            <div class="zoom-controls">
+                <button id="zoomInBtn" class="zoom-btn" aria-label="Zoom in">+</button>
+                <button id="zoomOutBtn" class="zoom-btn" aria-label="Zoom out">−</button>
             </div>
-            <div id="note-message">
-                <p>The difference between Total and Displayed is because duplicates and small tremors have been removed.</p>
+
+            <a class="about-link" href="#about">About this visualisation ↓</a>
+        </section>
+
+        <section class="content-section" id="about" aria-labelledby="page-heading">
+            <h1 id="page-heading">World Earthquakes in 3D</h1>
+            <p>
+                Explore recent earthquake activity around the world using this interactive
+                three-dimensional globe. Earthquake markers show the location, magnitude and
+                depth of recorded events. Rotate the globe to examine different regions, zoom
+                in for a closer look, and select an individual marker to view its details.
+            </p>
+
+            <h2>How to use the earthquake visualisation</h2>
+            <ul>
+                <li>Select <strong>Load Live Data</strong> to retrieve the latest available earthquake feeds.</li>
+                <li>Drag with the left mouse button to rotate the globe.</li>
+                <li>Drag with the right mouse button to move the view.</li>
+                <li>Use the mouse wheel or trackpad to zoom in and out.</li>
+                <li>Set the date range and window size, then use Play Animation to move through the selected period.</li>
+                <li>Select an earthquake marker to see its source, magnitude, depth, location and date/time.</li>
+            </ul>
+
+            <h2>Earthquake data sources</h2>
+            <p>
+                The visualisation combines publicly available earthquake information from
+                Geoscience Australia, the United States Geological Survey (USGS), and the
+                European-Mediterranean Seismological Centre (EMSC). Events from the feeds
+                are compared and likely duplicates are removed before the markers are displayed.
+            </p>
+
+            <div class="source-list">
+                <div class="source-card">
+                    <h3>Geoscience Australia</h3>
+                    <p>
+                        Australian earthquake information is retrieved from the Geoscience
+                        Australia earthquake service. Its feed used here covers approximately
+                        the most recent seven days.
+                    </p>
+                    <p><a href="https://earthquakes.ga.gov.au/" target="_blank" rel="noopener noreferrer">Geoscience Australia earthquakes</a></p>
+                </div>
+                <div class="source-card">
+                    <h3>United States Geological Survey</h3>
+                    <p>
+                        The USGS query provides earthquake information from around the world
+                        for the selected recent period.
+                    </p>
+                    <p><a href="https://earthquake.usgs.gov/earthquakes/feed/" target="_blank" rel="noopener noreferrer">USGS earthquake feeds</a></p>
+                </div>
+                <div class="source-card">
+                    <h3>European-Mediterranean Seismological Centre</h3>
+                    <p>
+                        EMSC provides an additional international earthquake data feed.
+                    </p>
+                    <p><a href="https://www.emsc-csem.org/" target="_blank" rel="noopener noreferrer">EMSC earthquake information</a></p>
+                </div>
             </div>
-        </div>
-<!--
-        <div id="sidebar">
-            <div class="placeholder-box">
-                [ System Metric Display Placeholder ]
-            </div>
-            <div class="placeholder-box" style="margin-top: 20px;">
-                [ Ad Placeholder ]
-            </div>
-        </div>
-					-->
+
+            <h2>Understanding the markers</h2>
+            <p>
+                Marker size represents earthquake magnitude. Marker colour represents depth:
+                shallow events are red, intermediate-depth events are orange, and deeper
+                events are purple. Marker position is based on the recorded latitude,
+                longitude and depth.
+            </p>
+
+            <h2>About this project</h2>
+            <p>
+                World Earthquakes in 3D is an interactive data-visualisation project built
+                with JavaScript and Three.js. It brings together public earthquake feeds
+                and presents the information in a form that makes global patterns easier
+                to explore.
+            </p>
+        </section>
     </div>
 
     <script>
         window.onload = function() {
             // --- Scene Setup ---
             const scene = new THREE.Scene();
-            const container = document.getElementById('canvas-container');
+            const container = document.querySelector('.visualisation');
             const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setClearColor(0x000000);
+            renderer.domElement.id = 'globeCanvas';
             container.appendChild(renderer.domElement);
 
             // --- Camera Controls ---
@@ -815,8 +1036,8 @@
                         const timeString = date.toLocaleTimeString();
 
                         tooltip.style.display = 'block';
-                        tooltip.style.left = `${event.clientX + 10}px`;
-                        tooltip.style.top = `${event.clientY + 10}px`;
+                        tooltip.style.left = `${event.clientX - rect.left + 10}px`;
+                        tooltip.style.top = `${event.clientY - rect.top + 10}px`;
                         tooltip.innerHTML = `
                             <strong>Source:</strong> ${quakeData.source}<br>
                             <strong>Magnitude:</strong> ${quakeData.magnitude.toFixed(2)}<br>
@@ -832,11 +1053,11 @@
                 }
             }
 
-            window.addEventListener('click', onClick, false);
+            renderer.domElement.addEventListener('click', onClick, false);
             
             // Handle window resizing
             window.addEventListener('resize', () => {
-                const container = document.getElementById('canvas-container');
+                const container = document.querySelector('.visualisation');
                 camera.aspect = container.clientWidth / container.clientHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(container.clientWidth, container.clientHeight);
